@@ -4,6 +4,7 @@ require __DIR__ . '/../config/db.php';
 
 Flight::set('db', connectDb());
 
+//GET
 Flight::route('GET /registrations', function () {
     $db = Flight::get('db');
     $stmt = $db->query("SELECT * FROM registrations");
@@ -11,32 +12,49 @@ Flight::route('GET /registrations', function () {
     Flight::json($registrations);
 });
 
+// POST 
 Flight::route('POST /register', function () {
-    $data = Flight::request()->data->getData();
-
-    $fullName = $data['full_name'] ?? null;
-    $email = $data['email'] ?? null;
-    $birthdate = $data['birthdate'] ?? null;
-    $phoneNumber = $data['phone_number'] ?? null;
-
-    if (!$fullName || !$email || !$birthdate || !$phoneNumber) {
-        Flight::json(['error' => 'All fields are required.'], 400);
-        return;
-    }
-
-    $db = Flight::get('db');
-
-    try {
-        $stmt = $db->prepare("INSERT INTO registrations (full_name, email, birthdate, phone_number) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$fullName, $email, $birthdate, $phoneNumber]);
-        Flight::json(['message' => 'Registration successful']);
-    } catch (PDOException $e) {
-        if ($e->getCode() == 23000) { // Duplicate email
-            Flight::json(['error' => 'This email is already registered.'], 400);
-        } else {
-            Flight::json(['error' => 'Failed to register.'], 500);
+    $d = Flight::request()->data->getData();
+    $required = ['full_name', 'email', 'birthdate', 'phone_number'];
+    foreach ($required as $field) {
+        if (empty($d[$field])) {
+            Flight::json(['error' => 'All fields are required.'], 400);
+            return;
         }
     }
+    try {
+        Flight::get('db')->prepare(
+            "INSERT INTO registrations (full_name, email, birthdate, phone_number) VALUES (?, ?, ?, ?)"
+        )->execute([$d['full_name'], $d['email'], $d['birthdate'], $d['phone_number']]);
+        Flight::json(['message' => 'Registration successful'], 201);
+    } catch (PDOException $e) {
+        Flight::json(
+            ['error' => $e->getCode() == 23000 ? 'This email is already registered.' : 'Failed to register.'],
+            $e->getCode() == 23000 ? 400 : 500
+        );
+    }
+});
+ 
+// PUT update registration
+Flight::route('PUT /registrations/@id', function($id) {
+    $data = Flight::request()->data->getData();
+    if (empty($data['full_name']) || empty($data['email']) || empty($data['birthdate']) || empty($data['phone_number'])) {
+        return Flight::json(['error' => 'All fields are required.'], 400);
+    }
+    $db = Flight::get('db');
+    $stmt = $db->prepare("UPDATE registrations SET full_name = ?, email = ?, birthdate = ?, phone_number = ? WHERE id = ?");
+    $stmt->execute([$data['full_name'], $data['email'], $data['birthdate'], $data['phone_number'], $id]);
+
+    Flight::json(['message' => $stmt->rowCount() ? 'Registration updated.' : 'No changes made.']);
+});
+
+// DELETE registration
+Flight::route('DELETE /registrations/@id', function($id) {
+    $db = Flight::get('db');
+    $stmt = $db->prepare("DELETE FROM registrations WHERE id = ?");
+    $stmt->execute([$id]);
+
+    Flight::json(['message' => $stmt->rowCount() ? 'Registration deleted.' : 'No registration found.'], $stmt->rowCount() ? 200 : 404);
 });
 
 Flight::start();
