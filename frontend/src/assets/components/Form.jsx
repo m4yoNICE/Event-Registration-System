@@ -4,21 +4,30 @@ import { useNavigate, useLocation } from "react-router-dom";
 const Form = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    birthdate: "",
-    phone_number: "",
+  const [formState, setFormState] = useState({
+    isEditing: false,
+    editingId: null,
+    formData: {
+      first_name: "",
+      last_name: "",
+      email: "",
+      birthdate: "",
+      phone_number: "",
+    },
   });
+
   const [registrationStatus, setRegistrationStatus] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingId, setEditingId] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormState((prev) => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        [name]: value,
+      },
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -29,17 +38,56 @@ const Form = () => {
     let method;
     let url;
 
-    if (isEditing) {
+    if (formState.isEditing) {
       method = "PUT";
-      url = `/api/registrations/${editingId}`;
+      url = `/api/registrations/${formState.editingId}`;
     } else {
       method = "POST";
       url = "/api/register";
     }
 
+    const { formData } = formState;
+    const nameRegex = /^[A-Za-z\s]{2,}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^09\d{9}$/;
+    const birthdate = new Date(formData.birthdate);
+    const now = new Date();
+    const trimmed = {
+      last_name: formData.last_name.trim(),
+    };
+
+    if (!nameRegex.test(formData.first_name)) {
+      setErrorMessage(
+        "First name must contain only letters and be at least 2 characters."
+      );
+      return;
+    }
+
+    if (!nameRegex.test(trimmed.last_name)) {
+      return setErrorMessage("Last name must be at least 2 letters.");
+    }
+
+    if (!emailRegex.test(formData.email)) {
+      setErrorMessage("Please enter a valid email address.");
+      return;
+    }
+
+    if (!phoneRegex.test(formData.phone_number)) {
+      setErrorMessage("Phone number must start with 09 and be 11 digits.");
+      return;
+    }
+
+    if (
+      isNaN(birthdate.getTime()) ||
+      birthdate > now ||
+      birthdate < new Date("1900-01-01")
+    ) {
+      return setErrorMessage("Enter an actual birthday, fake ahh");
+    }
+
     try {
       const res = await fetch(url, {
-        method: method, // Use the determined method (PUT or POST)
+        method: method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           full_name: `${formData.first_name} ${formData.last_name}`,
@@ -52,7 +100,8 @@ const Form = () => {
       const data = await res.json();
       if (!res.ok) {
         throw new Error(
-          data.error || `Registration ${isEditing ? "update" : "failed"}`
+          data.error ||
+            `Registration ${formState.isEditing ? "update" : "failed"}`
         );
       }
 
@@ -67,24 +116,29 @@ const Form = () => {
   useEffect(() => {
     if (location.state?.registration) {
       const { registration } = location.state;
-      setIsEditing(true);
-      setEditingId(registration.id);
-      setFormData({
-        first_name: registration.full_name.split(" ")[0] || "",
-        last_name: registration.full_name.split(" ")[1] || "",
-        email: registration.email || "",
-        birthdate: registration.birthdate || "",
-        phone_number: registration.phone_number || "",
+      const [first_name, last_name] = registration.full_name.split(" ");
+      setFormState({
+        isEditing: true,
+        editingId: registration.id,
+        formData: {
+          first_name: first_name || "",
+          last_name: last_name || "",
+          email: registration.email || "",
+          birthdate: registration.birthdate || "",
+          phone_number: registration.phone_number || "",
+        },
       });
     } else {
-      setIsEditing(false);
-      setEditingId(null);
-      setFormData({
-        first_name: "",
-        last_name: "",
-        email: "",
-        birthdate: "",
-        phone_number: "",
+      setFormState({
+        isEditing: false,
+        editingId: null,
+        formData: {
+          first_name: "",
+          last_name: "",
+          email: "",
+          birthdate: "",
+          phone_number: "",
+        },
       });
     }
   }, [location.state]);
@@ -100,7 +154,7 @@ const Form = () => {
         name="first_name"
         className="w-full p-3 border rounded"
         placeholder="First Name"
-        value={formData.first_name}
+        value={formState.formData.first_name}
         onChange={handleChange}
         required
       />
@@ -109,7 +163,7 @@ const Form = () => {
         name="last_name"
         className="w-full p-3 border rounded"
         placeholder="Last Name"
-        value={formData.last_name}
+        value={formState.formData.last_name}
         onChange={handleChange}
         required
       />
@@ -119,7 +173,7 @@ const Form = () => {
         type="email"
         className="w-full p-3 border rounded"
         placeholder="Email"
-        value={formData.email}
+        value={formState.formData.email}
         onChange={handleChange}
         required
       />
@@ -128,7 +182,7 @@ const Form = () => {
         name="birthdate"
         type="date"
         className="w-full p-3 border rounded"
-        value={formData.birthdate}
+        value={formState.formData.birthdate}
         onChange={handleChange}
         required
       />
@@ -138,7 +192,7 @@ const Form = () => {
         type="tel"
         className="w-full p-3 border rounded"
         placeholder="Phone Number"
-        value={formData.phone_number}
+        value={formState.formData.phone_number}
         onChange={handleChange}
         required
       />
@@ -148,7 +202,7 @@ const Form = () => {
           type="submit"
           className="bg-blue-500 text-white px-6 py-3 rounded-md"
         >
-          {isEditing ? "Update Registration" : "Register"}
+          {formState.isEditing ? "Update Registration" : "Register"}
         </button>
         <button
           type="button"

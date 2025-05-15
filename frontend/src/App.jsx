@@ -5,15 +5,13 @@ import Header from "./assets/components/Header.jsx";
 
 function App() {
   return (
-    <>
-      <BrowserRouter>
-        <Header />
-        <Routes>
-          <Route path="/" element={<Table />} />
-          <Route path="/register" element={<Form />} />
-        </Routes>
-      </BrowserRouter>
-    </>
+    <BrowserRouter>
+      <Header />
+      <Routes>
+        <Route path="/" element={<Table />} />
+        <Route path="/register" element={<Form />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
